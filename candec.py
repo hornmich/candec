@@ -48,16 +48,20 @@ for line in file:
 		startByte = int(params[2])
 		startBit = int(params[3])
 		segLen = int(params[4]);
-		valDescriptor = []
+		valDescriptor = {}
 		state = 'sig'
 		
 	elif '%val' in line:
 		if state != 'sig' :
 			print 'Unexpected token %val found at line ' + str(lineNum) + 'in state ' + state
 			continue
-		descriptor = line.partition('\t')
+		params = line.rsplit('\t')
+		if len(params) != 3:
+			continue
+		descriptor = params[2]
+		value = int(params[1])
 		#print 'Descriptor: ' + descriptor[2]
-		valDescriptor.append(descriptor[2])
+		valDescriptor[value] = descriptor
 	elif '%endsig' in line:
 		if state != 'sig' :
 			print 'Unexpected token %endsig found at line ' + str(lineNum) + 'in state ' + state
