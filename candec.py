@@ -19,7 +19,7 @@
   along with CANDec.   If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from optparse import OptionParser
+from optparse import OptionParser, Option
 
 class CANSignal:
 	def __init__(self, sigName='void', sigByte=0, sigBit=0, sigLen=0, sigVal=0, sigDecVal='n/a'):
@@ -31,8 +31,10 @@ class CANSignal:
 		self.sigDecVal = sigDecVal
 
 class CANDec:
-	def __init__(self):
+	def __init__(self, startBit = 0, startByte = 1):
 		self.reset()
+		self.startBit = startBit
+		self.startByte = startByte
 
 	def reset(self) :
 		self.state = 'start'
@@ -85,11 +87,11 @@ class CANDec:
 					continue
 				self.state = 'start'
 				self.sigNames.append(tmpSigName)
-				byte = (canMsgVal >> (tmpSigByte-1)*8) & 0xFF
+				byte = (canMsgVal >> (tmpSigByte-self.startByte)*8) & 0xFF
 				bitCodeMask = 0x0
 				for i in range(tmpSigLen) :
 					bitCodeMask = bitCodeMask | 1 << i;
-				tmpSigDecVal = (byte >> tmpSigBit) & bitCodeMask;
+				tmpSigDecVal = (byte >> tmpSigBit - self.startBit) & bitCodeMask;
 				if tmpSigDecVal in tmpValDescriptors:
 					self.signals[tmpSigName] = CANSignal(tmpSigName, tmpSigByte, tmpSigBit, tmpSigLen, tmpSigDecVal, tmpValDescriptors[tmpSigDecVal])
 					self.sigRawDecoded = self.sigRawDecoded + (tmpSigName + '[' + str(tmpSigByte) + ', ' + str(tmpSigBit) + ', ' + str(tmpSigLen) + '] = ' + ' (' + str(tmpSigDecVal) + ')' + tmpValDescriptors[tmpSigDecVal])
@@ -118,13 +120,42 @@ class CANDec:
 	def getSignalsRawDecoded(self):
 		return self.sigRawDecoded
 	
-parser = OptionParser()
-(options, args) = parser.parse_args()
-if len(args) != 2:
-	exit(1)
-canMsgVal = int(args[0], 16)
-descFileName = args[1]
+def main():
+	usage = "usage: %prog [options] msgVal descriptor"	
+	parser = OptionParser(usage)
+	parser.add_option("-s", "--signal", dest="reqSigName", help="Print only signal with the specified NAME", metavar="NAME")
+	parser.add_option("-b", "--start-bit", dest="startBit", type="int", default=0, help = "Determines the start index of bits. 0 by default.")
+	parser.add_option("-B", "--start-byte", dest="startByte", type="int", default=1, help = "Determines the start index for bytes. 1 by default")
+	reqSigName = ''
+	startBit = 0
+	startByte = 1
+	(options, args) = parser.parse_args()
 
-canDecoder = CANDec()
-canDecoder.decode(canMsgVal, descFileName)
-print canDecoder.getSignalsRawDecoded()
+	if len(args) != 2:
+		parser.error('Wrong number of arguments.')
+
+	if options.reqSigName:
+		reqSigName = options.reqSigName
+
+	if options.startBit >= 0:
+		startBit = options.startBit
+	else:
+		parser.error('Start bit must be unsigned.')
+
+	if options.startByte >= 0:
+		startByte = options.startByte
+	else:
+		parser.error('Start byte must be unsigned.')
+
+	canMsgVal = int(args[0], 16)
+	descFileName = args[1]
+
+	canDecoder = CANDec(startBit, startByte)
+	canDecoder.decode(canMsgVal, descFileName)
+	if reqSigName != '':
+		print reqSigName + ': (' + str(canDecoder.getSignalValue(reqSigName)) + ') ' + canDecoder.getSignalDecoded(reqSigName)
+	else:
+		print canDecoder.getSignalsRawDecoded()
+
+if __name__ == "__main__":
+    main()
